@@ -1,0 +1,38 @@
+{
+  "title": "Our League - Week 12",
+  "teams": [
+    {
+      "owner": "Curt",
+      "players": [
+        {"name": "Example Player", "team": "CIN"}
+      ]
+    },
+    {
+      "owner": "Vidal",
+      "players": [
+        {"name": "Ja'Marr Chase", "team": "CIN"}
+      ]
+    },
+    {
+      "owner": "Bacon",
+      "players": [
+        {"name": "Chase Brown", "team": "CIN"}
+      ]
+    },
+    {
+      "owner": "Bond",
+      "players": [
+        {"name": "Jayden Daniels", "team": "WAS"},
+        {"name": "Chig Okonkwo", "team": "WAS"},
+        {"name": "Stefon Diggs", "team": "WAS"}
+      ]
+    },
+    {
+      "owner": "Munoz",
+      "players": [
+        {"name": "Joe Burrow", "team": "CIN"},
+        {"name": "Tee Higgins", "team": "CIN"}
+      ]
+    }
+  ]
+}
