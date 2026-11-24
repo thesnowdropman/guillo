@@ -1,0 +1,53 @@
+name: Update scoreboard
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 minutes (GitHub may delay scheduled runs)
+  workflow_dispatch:         # lets you run it manually from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  SEASON: "2026"
+  WEEK: "12"                 # update each week
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Export scoreboard JSON
+        env:
+          SPORTSDATAIO_KEY: ${{ secrets.SPORTSDATAIO_KEY }}
+        run: |
+          python -m fantasy_scoreboard.export \
+            --league data/league.json \
+            --season "$SEASON" \
+            --week "$WEEK" \
+            --out site/data/scoreboard.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

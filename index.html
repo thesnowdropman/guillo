@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fantasy Scoreboard</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #181b22;
+      --text: #e8eaf0;
+      --muted: #8a90a0;
+      --accent: #f5b400;
+      --line: #262a33;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: env(safe-area-inset-top, 0) 16px env(safe-area-inset-bottom, 0);
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 0 48px; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+    .status {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.8rem; background: var(--line); color: var(--muted);
+    }
+    .status.live { background: var(--accent); color: #111; }
+    table {
+      width: 100%; border-collapse: collapse; background: var(--panel);
+      border-radius: 10px; overflow: hidden;
+    }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.owner { cursor: pointer; }
+    tr.owner:hover td { background: #1e222b; }
+    tr.detail td { background: #13161c; padding: 0 14px 12px; }
+    .players { width: 100%; font-size: 0.9rem; color: var(--muted); }
+    .players td { padding: 6px 0; border: none; }
+    .done { color: #5fd38d; }
+    .pending { color: var(--accent); }
+    h2 { font-size: 1.05rem; margin: 32px 0 10px; }
+    .games { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+    .game {
+      background: var(--panel); border-radius: 10px; padding: 10px 12px;
+      font-size: 0.9rem; display: flex; justify-content: space-between;
+    }
+    .error { color: #ff7b7b; margin-top: 16px; }
+    @media (max-width: 520px) { .games { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1 id="title">Fantasy Scoreboard</h1>
+  <div class="meta">
+    <span id="week"></span> &middot; Updated <span id="updated">loading…</span>
+    &middot; <span id="state" class="status">—</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Owner</th>
+        <th class="num">Points</th>
+        <th class="num">Players left</th>
+      </tr>
+    </thead>
+    <tbody id="owners"></tbody>
+  </table>
+
+  <h2>Games</h2>
+  <div class="games" id="games"></div>
+
+  <div id="error" class="error" hidden></div>
+</main>
+
+<script>
+  const DATA_URL = "data/scoreboard.json";
+  const REFRESH_MS = 60 * 1000;
+  const openOwners = new Set();
+
+  function el(tag, props = {}, text = "") {
+    const node = document.createElement(tag);
+    Object.assign(node, props);
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function render(data) {
+    document.getElementById("title").textContent = data.title;
+    document.getElementById("week").textContent = `${data.season} · Week ${data.week}`;
+    document.getElementById("updated").textContent = data.updated_utc;
+
+    const state = document.getElementById("state");
+    state.textContent = data.all_games_final ? "Final" : "Live";
+    state.className = "status" + (data.all_games_final ? "" : " live");
+
+    const tbody = document.getElementById("owners");
+    tbody.replaceChildren();
+    data.owners.forEach((o, idx) => {
+      const isOpen = openOwners.has(o.owner);
+      const row = el("tr", { className: "owner" });
+      row.onclick = () => {
+        isOpen ? openOwners.delete(o.owner) : openOwners.add(o.owner);
+        render(data);
+      };
+      row.append(
+        el("td", {}, `${idx + 1}. ${o.owner}`),
+        el("td", { className: "num" }, o.points.toFixed(2)),
+        el("td", { className: "num" }, String(o.players_left))
+      );
+      tbody.append(row);
+
+      if (isOpen) {
+        const detail = el("tr", { className: "detail" });
+        const cell = el("td");
+        cell.colSpan = 3;
+        const table = el("table", { className: "players" });
+        o.players.forEach(p => {
+          const tr = el("tr");
+          tr.append(
+            el("td", {}, `${p.name} (${p.team})`),
+            el("td", { className: p.is_final ? "done" : "pending" }, p.is_final ? "Final" : p.status),
+            el("td", { className: "num" }, p.points.toFixed(2))
+          );
+          table.append(tr);
+        });
+        cell.append(table);
+        detail.append(cell);
+        tbody.append(detail);
+      }
+    });
+
+    const games = document.getElementById("games");
+    games.replaceChildren();
+    data.games.forEach(g => {
+      const score = g.away_score != null && g.home_score != null
+        ? `${g.away_score}–${g.home_score}` : "";
+      games.append(el("div", { className: "game" },
+        `${g.away} @ ${g.home}`));
+      games.lastChild.append(el("span", {}, `${score} ${g.status}`.trim()));
+    });
+  }
+
+  async function load() {
+    const error = document.getElementById("error");
+    try {
+      const res = await fetch(`${DATA_URL}?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      error.hidden = true;
+      render(data);
+    } catch (err) {
+      error.hidden = false;
+      error.textContent = `Could not load scores (${err.message}). Retrying…`;
+    }
+  }
+
+  load();
+  setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
